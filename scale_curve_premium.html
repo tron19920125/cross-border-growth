@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨境电商增长曲线 - 高级可视化</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: auto;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .title {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 18px;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+        }
+
+        .chart-container {
+            position: relative;
+        }
+
+        .growth-path {
+            fill: none;
+            stroke-width: 4;
+            stroke: url(#gradient);
+            filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
+        }
+
+        .growth-area {
+            fill: url(#areaGradient);
+            opacity: 0.7;
+        }
+
+        .data-point {
+            fill: #fff;
+            stroke-width: 3;
+            stroke: #667eea;
+            filter: drop-shadow(0 0 6px rgba(102, 126, 234, 0.5));
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .data-point:hover {
+            r: 8;
+            filter: drop-shadow(0 0 12px rgba(102, 126, 234, 0.8));
+        }
+
+        .axis {
+            font-size: 14px;
+            color: #34495e;
+        }
+
+        .axis-label {
+            font-size: 16px;
+            font-weight: 600;
+            fill: #2c3e50;
+        }
+
+        .grid-line {
+            stroke: #ecf0f1;
+            stroke-width: 1;
+            opacity: 0.7;
+        }
+
+        .value-label {
+            font-size: 14px;
+            font-weight: 600;
+            fill: #2c3e50;
+            text-anchor: middle;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .cagr-badge {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 16px;
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .stats-panel {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+            padding: 20px;
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 18px;
+            color: #667eea;
+            margin: 50px 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">跨境电商进入3万亿美元时代</h1>
+        <p class="subtitle">全球跨境线上零售交易额增长预测 | 2023-2032年复合增长率21.6%</p>
+        
+        <div class="chart-container">
+            <div class="cagr-badge">CAGR: 21.6%</div>
+            <div id="chart"></div>
+        </div>
+
+        <div class="stats-panel fade-in">
+            <div class="stat-item">
+                <div class="stat-value">$2.83T</div>
+                <div class="stat-label">2023年交易额</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">$16.45T</div>
+                <div class="stat-label">2032年预测</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">21.6%</div>
+                <div class="stat-label">年复合增长率</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">70%+</div>
+                <div class="stat-label">亚太+北美份额</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 数据
+        const data = [
+            {year: 2023, value: 2.83},
+            {year: 2024, value: 3.44},
+            {year: 2025, value: 4.18},
+            {year: 2026, value: 5.08},
+            {year: 2027, value: 6.17},
+            {year: 2028, value: 7.50},
+            {year: 2029, value: 9.11},
+            {year: 2030, value: 11.07},
+            {year: 2031, value: 13.45},
+            {year: 2032, value: 16.45}
+        ];
+
+        // 设置图表尺寸 - 调整右边距，因为不再需要为饼图留空间
+        const margin = {top: 40, right: 80, bottom: 80, left: 80};
+        const width = 1200 - margin.left - margin.right;
+        const height = 500 - margin.bottom - margin.top;
+
+        // 创建SVG
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom);
+
+        // 定义渐变
+        const defs = svg.append("defs");
+        
+        const gradient = defs.append("linearGradient")
+            .attr("id", "gradient")
+            .attr("gradientUnits", "userSpaceOnUse")
+            .attr("x1", 0).attr("y1", height)
+            .attr("x2", width).attr("y2", 0);
+        
+        gradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#667eea");
+        
+        gradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#764ba2");
+
+        const areaGradient = defs.append("linearGradient")
+            .attr("id", "areaGradient")
+            .attr("gradientUnits", "userSpaceOnUse")
+            .attr("x1", 0).attr("y1", height)
+            .attr("x2", 0).attr("y2", 0);
+        
+        areaGradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#667eea")
+            .attr("stop-opacity", 0.1);
+        
+        areaGradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#667eea")
+            .attr("stop-opacity", 0.6);
+
+        const g = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // 比例尺
+        const xScale = d3.scaleLinear()
+            .domain(d3.extent(data, d => d.year))
+            .range([0, width]);
+
+        const yScale = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d.value) * 1.1])
+            .range([height, 0]);
+
+        // 网格线
+        g.selectAll(".grid-line-x")
+            .data(xScale.ticks(10))
+            .enter().append("line")
+            .attr("class", "grid-line")
+            .attr("x1", d => xScale(d))
+            .attr("x2", d => xScale(d))
+            .attr("y1", 0)
+            .attr("y2", height);
+
+        g.selectAll(".grid-line-y")
+            .data(yScale.ticks(8))
+            .enter().append("line")
+            .attr("class", "grid-line")
+            .attr("x1", 0)
+            .attr("x2", width)
+            .attr("y1", d => yScale(d))
+            .attr("y2", d => yScale(d));
+
+        // 坐标轴
+        const xAxis = d3.axisBottom(xScale).tickFormat(d3.format("d"));
+        const yAxis = d3.axisLeft(yScale).tickFormat(d => `$${d}T`);
+
+        g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height})`)
+            .call(xAxis);
+
+        g.append("g")
+            .attr("class", "axis")
+            .call(yAxis);
+
+        // 轴标签
+        g.append("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -50)
+            .attr("x", -height/2)
+            .style("text-anchor", "middle")
+            .text("交易额 (万亿美元)");
+
+        g.append("text")
+            .attr("class", "axis-label")
+            .attr("x", width/2)
+            .attr("y", height + 50)
+            .style("text-anchor", "middle")
+            .text("年份");
+
+        // 线条生成器
+        const line = d3.line()
+            .x(d => xScale(d.year))
+            .y(d => yScale(d.value))
+            .curve(d3.curveCardinal.tension(0.3));
+
+        // 区域生成器
+        const area = d3.area()
+            .x(d => xScale(d.year))
+            .y0(height)
+            .y1(d => yScale(d.value))
+            .curve(d3.curveCardinal.tension(0.3));
+
+        // 绘制区域
+        const areaPath = g.append("path")
+            .datum(data)
+            .attr("class", "growth-area")
+            .attr("d", area);
+
+        // 绘制线条
+        const path = g.append("path")
+            .datum(data)
+            .attr("class", "growth-path")
+            .attr("d", line);
+
+        // 动画效果
+        const totalLength = path.node().getTotalLength();
+        path
+            .attr("stroke-dasharray", totalLength + " " + totalLength)
+            .attr("stroke-dashoffset", totalLength)
+            .transition()
+            .duration(2000)
+            .ease(d3.easeLinear)
+            .attr("stroke-dashoffset", 0);
+
+        // 创建tooltip
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip");
+
+        // 数据点
+        const circles = g.selectAll(".data-point")
+            .data(data)
+            .enter().append("circle")
+            .attr("class", "data-point")
+            .attr("cx", d => xScale(d.year))
+            .attr("cy", d => yScale(d.value))
+            .attr("r", 0)
+            .on("mouseover", function(event, d) {
+                d3.select(this).transition().duration(200).attr("r", 8);
+                tooltip.transition().duration(200).style("opacity", 1);
+                tooltip.html(`
+                    <strong>${d.year}年</strong><br/>
+                    交易额: $${d.value}T<br/>
+                    ${d.year > 2023 ? `增长: ${((d.value/2.83-1)*100).toFixed(1)}%` : '基准年'}
+                `)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 10) + "px");
+            })
+            .on("mouseout", function(d) {
+                d3.select(this).transition().duration(200).attr("r", 6);
+                tooltip.transition().duration(200).style("opacity", 0);
+            });
+
+        // 动画显示圆点
+        circles.transition()
+            .delay((d, i) => i * 200 + 1000)
+            .duration(300)
+            .attr("r", 6);
+
+        // 数值标签
+        const labels = g.selectAll(".value-label")
+            .data([data[0], data[data.length-1]])
+            .enter().append("text")
+            .attr("class", "value-label")
+            .attr("x", d => xScale(d.year))
+            .attr("y", d => yScale(d.value) - 15)
+            .text(d => `$${d.value}T`);
+
+        labels.transition()
+            .delay(2500)
+            .duration(500)
+            .style("opacity", 1);
+
+        console.log("高级跨境电商增长可视化已加载完成！");
+    </script>
+</body>
+</html> 
